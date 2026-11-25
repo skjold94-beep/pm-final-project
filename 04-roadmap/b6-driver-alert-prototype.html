@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B6 Driver Alerts · Prototype</title>
+<style>
+  :root {
+    --page: #0b1426; --panel: #16223d; --border: #2a3a5e; --text: #e8eefc; --muted: #9aa8c7; --accent: #5fd0ec;
+    --ok: #0f9d58; --ok-bg: #e6f6ed; --fail: #d93025; --fail-bg: #fdecea; --warn: #b26a00; --warn-bg: #fff4e0;
+    --info: #1a5fd0; --info-bg: #e8f0fe; --ink: #111827; --ink-2: #4b5563; --line: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--page); color: var(--text); }
+  .layout { max-width: 1120px; margin: 0 auto; padding: 24px 16px 40px; display: grid; grid-template-columns: 375px 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; justify-items: center; } .side { width: 100%; max-width: 520px; } }
+  .title { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+  .title h1 { margin: 0; font-size: 22px; }
+  .title span { color: var(--muted); font-size: 14px; }
+
+  /* Phone */
+  .phone { width: 375px; height: 740px; background: #fff; color: var(--ink); border-radius: 36px; border: 10px solid #000; box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .appbar { background: #0b1426; color: #fff; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+  .appbar b { font-size: 15px; }
+  .bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; margin-left: 6px; vertical-align: middle; }
+  .bars i { width: 4px; background: #475569; border-radius: 1px; }
+  .bars i:nth-child(1) { height: 5px; } .bars i:nth-child(2) { height: 9px; } .bars i:nth-child(3) { height: 14px; }
+  .bars.strong i { background: #34d399; } .bars.weak i:nth-child(1) { background: #fbbf24; }
+  .screen { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 14px; overflow-y: auto; }
+  .bottom { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+
+  .stopcard { border: 2px solid var(--line); border-radius: 16px; padding: 16px; }
+  .stopno { font-size: 13px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; }
+  .addr { font-size: 22px; font-weight: 800; line-height: 1.25; margin: 6px 0 8px; }
+  .meta { font-size: 15px; color: var(--ink-2); }
+  .timer { display: inline-block; margin-top: 10px; font-size: 14px; font-weight: 700; background: #f3f4f6; padding: 4px 10px; border-radius: 999px; }
+  .timer.late { background: var(--fail-bg); color: var(--fail); }
+
+  button { font-family: inherit; cursor: pointer; }
+  .big { width: 100%; min-height: 64px; font-size: 20px; font-weight: 800; border: none; border-radius: 16px; color: #fff; background: #0b1426; }
+  .big.retry { background: var(--fail); }
+  .big.ok { background: var(--ok); }
+  .big:active { transform: scale(.98); }
+  .secondary { width: 100%; min-height: 56px; font-size: 17px; font-weight: 700; border: 2px solid var(--line); background: #fff; color: var(--ink); border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .tag { font-size: 12px; font-weight: 800; color: var(--fail); background: var(--fail-bg); padding: 3px 8px; border-radius: 999px; }
+  .link { background: none; border: none; color: var(--ink-2); font-size: 15px; text-decoration: underline; padding: 6px; }
+
+  .photo { position: relative; border-radius: 16px; overflow: hidden; height: 220px; background: linear-gradient(135deg, #c7b299, #a68b6d); display: flex; align-items: center; justify-content: center; }
+  .photo svg { width: 120px; height: 120px; opacity: .85; }
+  .photo .pid { position: absolute; left: 10px; bottom: 8px; font-size: 12px; color: #fff; background: rgba(0,0,0,.45); padding: 2px 8px; border-radius: 6px; }
+  .chip { position: absolute; top: 10px; right: 10px; font-size: 14px; font-weight: 800; padding: 6px 12px; border-radius: 999px; background: #fff; }
+  .chip.uploading { color: var(--info); } .chip.failed { color: var(--fail); } .chip.saved { color: var(--warn); } .chip.background { color: var(--info); }
+
+  .banner { border-radius: 14px; padding: 14px 16px; font-size: 17px; font-weight: 800; display: flex; gap: 10px; align-items: flex-start; }
+  .banner small { display: block; font-size: 14px; font-weight: 500; margin-top: 3px; }
+  .banner.fail { background: var(--fail); color: #fff; animation: shake .35s; }
+  .banner.saved { background: var(--warn-bg); color: var(--warn); border: 2px solid #f5c26b; }
+  .banner.info { background: var(--info-bg); color: var(--info); }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .status-line { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: var(--info); }
+  .spinner { width: 22px; height: 22px; border: 3px solid #c7d7f7; border-top-color: var(--info); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .confirmed { text-align: center; padding-top: 30px; }
+  .check { width: 120px; height: 120px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 70px; font-weight: 900; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+  .confirmed h2 { font-size: 30px; margin: 0 0 6px; color: var(--ok); }
+  .confirmed .when { font-size: 16px; color: var(--ink-2); }
+  .confirmed .dur { font-size: 22px; font-weight: 800; margin-top: 14px; }
+  .pill { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 999px; }
+  .pill.good { background: var(--ok-bg); color: var(--ok); } .pill.bad { background: var(--fail-bg); color: var(--fail); }
+
+  .confirm-leave { border: 2px solid var(--fail); background: var(--fail-bg); border-radius: 14px; padding: 12px; }
+  .confirm-leave p { margin: 0 0 10px; font-weight: 800; color: var(--fail); font-size: 16px; }
+  .confirm-leave .row { display: flex; gap: 8px; }
+  .confirm-leave button { flex: 1; min-height: 52px; font-size: 16px; font-weight: 800; border-radius: 12px; border: none; }
+  .confirm-leave .go { background: var(--fail); color: #fff; } .confirm-leave .stay { background: #fff; color: var(--ink); border: 2px solid var(--line); }
+
+  .toast { position: absolute; left: 12px; right: 12px; bottom: 14px; background: #0b1426; color: #fff; padding: 12px 14px; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+  .summary-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+
+  /* Side panel */
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  .box { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .box h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg button { flex: 1; padding: 10px; background: transparent; color: var(--muted); border: none; font-size: 14px; font-weight: 700; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.on { background: var(--accent); color: #0b1426; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; margin-top: 12px; cursor: pointer; }
+  .metric { display: flex; align-items: baseline; gap: 10px; }
+  .metric .big-n { font-size: 34px; font-weight: 800; }
+  .metric .target { font-size: 13px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  details summary { cursor: pointer; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); font-weight: 700; }
+  .log { margin-top: 10px; max-height: 300px; overflow-y: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; }
+  .log div { padding: 2px 0; border-bottom: 1px dashed #24324f; }
+  .log .ok { color: #34d399; } .log .fail { color: #f87171; } .log .warn { color: #fbbf24; } .log .flag { color: #f472b6; } .log .t { color: #64748b; }
+  .reset { margin-top: 10px; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 7px 12px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="title"><h1>B6 · Driver Alert Notifications</h1><span>Prototype: "POD didn't upload, retry" alert · simulated network, no real uploads</span></div>
+  <div class="phone" id="phone"></div>
+  <div class="side" id="side"></div>
+</div>
+
+<script>
+(() => {
+  const STOP_DATA = [
+    { address: "Torstraße 112, 10119 Berlin", recipient: "K. Hoffmann", parcel: "RL-48213" },
+    { address: "Kastanienallee 7, 10435 Berlin", recipient: "Café Mila (rear door)", parcel: "RL-48219" },
+    { address: "Oderberger Str. 44, 10435 Berlin", recipient: "J. Nowak", parcel: "RL-48227" },
+    { address: "Schönhauser Allee 36, 10435 Berlin", recipient: "Kulturbrauerei, Dock B", parcel: "RL-48240" }
+  ];
+  const TWO_MIN = 120000;
+  const SIG_LABEL = { strong: "Strong", weak: "Weak", none: "None" };
+
+  // ---- Simulated clock (respects demo speed) ----
+  let simT = 0, lastReal = performance.now();
+  function simNow() { const r = performance.now(); simT += (r - lastReal) * S.scale; lastReal = r; return simT; }
+
+  // ---- State ----
+  let S = { signal: "strong", scale: 1 };
+  let toastTimer = null;
+
+  function freshStops() {
+    return STOP_DATA.map((d, i) => ({ ...d, n: i + 1, arrivedAt: null, flagged: false, flagReason: "",
+      pod: { status: "none", version: 0, attempts: 0, fails: 0, background: false, uploadedAt: null, photo: 0 } }));
+  }
+  function reset() {
+    S = { signal: S.signal, scale: S.scale, idx: 0, stops: freshStops(), screen: "stop", confirmLeave: false, routeDone: false, log: [], toast: "" };
+    arrive(S.stops[0]);
+    render();
+  }
+  const cur = () => S.stops[S.idx];
+  const live = st => S.stops.includes(st);
+
+  function arrive(st) { st.arrivedAt = simNow(); log(st, "Arrived at stop"); }
+  function log(st, msg, kind = "") {
+    const t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    S.log.unshift({ t, n: st ? st.n : "–", msg, kind });
+  }
+  function fmt(ms) { const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+  function showToast(msg) { S.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = ""; render(); }, 3500); }
+
+  // ---- Alert cue: one per failure ----
+  let audioCtx = null;
+  function alertCue() {
+    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (_) {}
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.22].forEach(off => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = "square"; o.frequency.value = 880; g.gain.value = 0.08;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(audioCtx.currentTime + off); o.stop(audioCtx.currentTime + off + 0.15);
+      });
+    } catch (_) {}
+  }
+
+  // ---- Upload simulation ----
+  function startUpload(st, auto = false) {
+    const p = st.pod;
+    if (p.status === "uploaded") return;
+    const v = ++p.version;               // new attempt cancels any earlier in-flight attempt
+    p.attempts++;
+    p.status = "uploading";
+    const sig = S.signal;
+    log(st, `${auto ? "Auto-retry" : "Upload"} attempt #${p.attempts} · ${SIG_LABEL[sig]} signal`);
+    let ms, ok;
+    if (sig === "strong") { ms = 1000; ok = true; }
+    else if (sig === "weak") { ms = 3000; ok = Math.random() < 0.5; }
+    else { ms = 10000; ok = false; }   // no response → 10s timeout
+    setTimeout(() => onResult(st, v, ok, sig), ms / S.scale);
+    render();
+  }
+
+  function onResult(st, v, ok, sig) {
+    if (!live(st) || st.pod.version !== v) return;   // stale/cancelled attempt: ignore (no duplicate POD)
+    const p = st.pod;
+    if (ok) {
+      p.status = "uploaded"; p.uploadedAt = simNow(); p.background = false; p.fails = 0;
+      const dur = p.uploadedAt - st.arrivedAt;
+      log(st, `Upload confirmed · ${fmt(dur)} after arrival ${dur <= TWO_MIN ? "(within 2 min)" : "(over 2 min)"}`, "ok");
+      if (st === cur()) { S.confirmLeave = false; if (S.screen === "status") S.screen = "confirmed"; }
+      else showToast(`✓ Stop ${st.n} POD uploaded in background`);
+      render(); return;
+    }
+    p.fails++;
+    const reason = sig === "none" ? "no response, timed out after 10s" : "weak signal";
+    const noSignal = S.signal === "none";
+    if (p.fails >= 3 && !p.background) {
+      p.background = true;
+      log(st, "3 failed attempts in a row → background retry, driver no longer prompted", "warn");
+    }
+    if (p.background) {
+      p.status = "background";
+      log(st, `Background attempt failed (${reason})`, "fail");
+      if (!noSignal) scheduleBackground(st);
+      render(); return;
+    }
+    p.status = noSignal ? "saved" : "failed";
+    log(st, `Upload failed (${reason})${noSignal ? " · photo saved on device" : ""} → alert shown`, "fail");
+    if (st === cur() && !S.routeDone) alertCue();
+    render();
+  }
+
+  function scheduleBackground(st) {
+    const v = st.pod.version;
+    setTimeout(() => {
+      if (!live(st) || st.pod.version !== v || st.pod.status !== "background" || S.signal === "none") return;
+      startUpload(st, true);
+    }, 5000 / S.scale);
+  }
+
+  // ---- Driver actions ----
+  const actions = {
+    takePhoto() {
+      const st = cur(); st.pod.photo++;
+      S.screen = "status"; log(st, `POD photo #${st.pod.photo} taken`);
+      startUpload(st);
+    },
+    retry() {
+      const st = cur();
+      if (S.signal === "none") { st.pod.status = "saved"; log(st, "Retry tapped with no signal → photo kept on device, will auto-upload", "warn"); render(); return; }
+      startUpload(st);
+    },
+    retake() {
+      const st = cur(); st.pod.photo++;
+      log(st, `Photo retaken (#${st.pod.photo}) → earlier upload cancelled, keeping latest only`, "warn");
+      startUpload(st);
+    },
+    next() {
+      const st = cur();
+      if (st.pod.status !== "uploaded" && !S.confirmLeave) { S.confirmLeave = true; render(); return; }
+      if (st.pod.status !== "uploaded") {
+        log(st, "Driver continued without POD → stop stays flagged", "flag");
+        if (!st.flagged) { st.flagged = true; st.flagReason = "Left without POD"; }
+      }
+      S.confirmLeave = false;
+      if (S.idx === S.stops.length - 1) { S.routeDone = true; log(null, "Route finished"); }
+      else { S.idx++; S.screen = "stop"; arrive(cur()); }
+      render();
+    },
+    stay() { S.confirmLeave = false; render(); },
+    restart() { reset(); },
+    sig(e) {
+      const sig = e.dataset.sig; if (sig === S.signal) return;
+      S.signal = sig; log(null, `Signal changed → ${SIG_LABEL[sig]}`);
+      if (sig !== "none") {
+        S.stops.forEach(st => {
+          if (st.pod.status === "saved") { log(st, "Signal back → auto-uploading saved photo", "warn"); startUpload(st, true); }
+          else if (st.pod.status === "background") startUpload(st, true);
+        });
+      }
+      render();
+    },
+    speed(e) { simNow(); S.scale = e.checked ? 10 : 1; render(); }
+  };
+
+  // ---- Rendering ----
+  const phone = document.getElementById("phone");
+  const side = document.getElementById("side");
+
+  function photoBox(st, chip) {
+    return `<div class="photo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.3"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+      <span class="pid">POD #${st.pod.photo} · ${st.parcel}</span>${chip}</div>`;
+  }
+  function nextBtn(st) {
+    const missing = st.pod.status !== "uploaded";
+    const label = S.idx === S.stops.length - 1 ? "Finish route" : "Next stop →";
+    if (S.confirmLeave) return `<div class="confirm-leave"><p>POD not uploaded – continue anyway?</p>
+      <div class="row"><button class="stay" data-action="stay">Stay</button><button class="go" data-action="next">Continue</button></div></div>`;
+    return `<button class="secondary" data-action="next">${label}${missing ? ' <span class="tag">POD missing</span>' : ""}</button>`;
+  }
+  function timerPill(st) {
+    return `<span class="timer" data-timer="${st.n}">Arrived ${fmt(simNow() - st.arrivedAt)} ago</span>`;
+  }
+
+  function screenStop(st) {
+    return `<div class="screen">
+      <div class="stopcard"><div class="stopno">Stop ${st.n} of ${S.stops.length}</div>
+        <div class="addr">${st.address}</div><div class="meta">${st.recipient} · ${st.parcel}</div>${timerPill(st)}</div>
+      <div class="bottom">
+        <button class="big" data-action="takePhoto">📷 Take POD photo</button>
+        ${nextBtn(st)}
+      </div></div>`;
+  }
+
+  function screenStatus(st) {
+    const p = st.pod; let banner = "", chip = "", body = "", main = "";
+    if (p.status === "uploading" && !p.background) {
+      chip = `<span class="chip uploading">Uploading…</span>`;
+      body = `<div class="status-line"><span class="spinner"></span>Uploading proof of delivery…</div>`;
+    } else if (p.status === "failed") {
+      chip = `<span class="chip failed">Failed</span>`;
+      banner = `<div class="banner fail">⚠️<div>Photo didn't upload – retry<small>Attempt ${p.fails} of 3 · tap Retry below</small></div></div>`;
+      main = `<button class="big retry" data-action="retry">↻ Retry upload</button>`;
+    } else if (p.status === "saved") {
+      chip = `<span class="chip saved">Saved</span>`;
+      banner = `<div class="banner saved">📶<div>No signal – photo saved<small>Will upload automatically when signal returns</small></div></div>`;
+      main = `<button class="big retry" data-action="retry">↻ Retry upload</button>`;
+    } else if (p.background || p.status === "background") {
+      chip = `<span class="chip background">Retrying…</span>`;
+      banner = `<div class="banner info">🔄<div>Retrying in background<small>Your photo is saved. You can move on – we'll upload it when we can.</small></div></div>`;
+    }
+    const retake = (p.status === "failed" || p.status === "saved") ? `<button class="link" data-action="retake">Retake photo</button>` : "";
+    return `<div class="screen">
+      ${banner}
+      ${photoBox(st, chip)}
+      <div class="meta"><b>Stop ${st.n}</b> · ${st.address}</div>${timerPill(st)}
+      ${body}
+      <div class="bottom">${main}${retake}${nextBtn(st)}</div></div>`;
+  }
+
+  function screenConfirmed(st) {
+    const dur = st.pod.uploadedAt - st.arrivedAt;
+    const at = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return `<div class="screen"><div class="confirmed">
+      <div class="check">✓</div><h2>Uploaded</h2>
+      <div class="when">Proof of delivery saved · ${at}</div>
+      <div class="dur">Confirmed in ${fmt(dur)}</div>
+      <span class="pill ${dur <= TWO_MIN ? "good" : "bad"}">${dur <= TWO_MIN ? "Within 2 min" : "Over 2 min"}</span></div>
+      <div class="bottom"><button class="big ok" data-action="next">${S.idx === S.stops.length - 1 ? "Finish route" : "Next stop →"}</button></div></div>`;
+  }
+
+  function screenDone() {
+    const m = metrics();
+    return `<div class="screen"><div class="confirmed" style="padding-top:10px"><h2 style="color:var(--ink)">Route complete</h2>
+      <div class="when">${m.inTwo} of ${m.visited} stops confirmed in-app within 2 min</div></div>
+      <div>${S.stops.map(st => `<div class="summary-row"><span>Stop ${st.n}</span><b style="color:${st.pod.status === "uploaded" ? "var(--ok)" : "var(--fail)"}">${st.pod.status === "uploaded" ? "✓ " + fmt(st.pod.uploadedAt - st.arrivedAt) : (st.pod.status === "background" || st.pod.status === "saved" || st.pod.status === "uploading") ? "Pending upload" : "No POD"}</b></div>`).join("")}</div>
+      <div class="bottom"><button class="big" data-action="restart">Restart demo route</button></div></div>`;
+  }
+
+  function metrics() {
+    const visited = S.stops.filter(s => s.arrivedAt !== null).length;
+    const inTwo = S.stops.filter(s => s.pod.status === "uploaded" && s.pod.uploadedAt - s.arrivedAt <= TWO_MIN).length;
+    return { visited, inTwo, rate: visited ? Math.round((inTwo / visited) * 100) : 0 };
+  }
+
+  function render() {
+    const st = cur();
+    let body;
+    if (S.routeDone) body = screenDone();
+    else if (S.screen === "confirmed") body = screenConfirmed(st);
+    else if (S.screen === "status") body = screenStatus(st);
+    else body = screenStop(st);
+    phone.innerHTML = `<div class="appbar"><b>RouteLogic Velocity</b><span>${S.routeDone ? "Done" : `Stop ${st.n}/${S.stops.length}`} <span class="bars ${S.signal}"><i></i><i></i><i></i></span></span></div>
+      ${body}${S.toast ? `<div class="toast">${S.toast}</div>` : ""}`;
+
+    const m = metrics();
+    side.innerHTML = `
+      <div class="box"><h3>Simulated signal</h3>
+        <div class="seg">${["strong", "weak", "none"].map(s => `<button data-action="sig" data-sig="${s}" class="${S.signal === s ? "on" : ""}">${SIG_LABEL[s]}</button>`).join("")}</div>
+        <div class="hint">Strong = uploads in 1s · Weak = 50% fail after 3s · None = times out after 10s, photo saved, auto-uploads when signal returns.</div>
+        <label class="toggle"><input type="checkbox" data-action="speed" ${S.scale > 1 ? "checked" : ""}> Demo speed ×10 (2-min flag after 12s, timeout after 1s)</label>
+      </div>
+      <div class="box"><h3>Primary metric · doorstep in-app confirmation rate</h3>
+        <div class="metric"><span class="big-n" style="color:${m.rate >= 90 ? "#34d399" : "#fbbf24"}">${m.rate}%</span><span class="target">${m.inTwo} of ${m.visited} visited stops with POD ≤ 2 min · target ≥ 90%</span></div>
+        <table><tr><th>Stop</th><th>POD status</th><th>Attempts</th><th>Time to POD</th><th>Coordinator flag</th></tr>
+        ${S.stops.map(s => `<tr><td>${s.n}</td><td>${s.arrivedAt === null ? "–" : s.pod.status}</td><td>${s.pod.attempts}</td><td>${s.pod.status === "uploaded" ? fmt(s.pod.uploadedAt - s.arrivedAt) : "–"}</td><td>${s.flagged ? "🚩 " + s.flagReason : "–"}</td></tr>`).join("")}</table>
+        <button class="reset" data-action="restart">Reset demo</button>
+      </div>
+      <div class="box"><details ${S.logOpen ? "open" : ""} id="logbox"><summary>Event log (debug)</summary>
+        <div class="log">${S.log.map(l => `<div class="${l.kind}"><span class="t">${l.t} · stop ${l.n}</span> ${l.msg}</div>`).join("") || "<div>No events yet</div>"}</div></details></div>`;
+    document.getElementById("logbox").addEventListener("toggle", e => { S.logOpen = e.target.open; });
+  }
+
+  // Event delegation
+  document.addEventListener("click", e => {
+    // Unlock audio on a user gesture so the failure beep can play later
+    try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === "suspended") audioCtx.resume(); } catch (_) {}
+    const el = e.target.closest("[data-action]");
+    if (!el || el.tagName === "INPUT") return;
+    actions[el.dataset.action]?.(el);
+  });
+  document.addEventListener("change", e => {
+    const el = e.target.closest("input[data-action]");
+    if (el) actions[el.dataset.action]?.(el);
+  });
+
+  // Ticker: live timers + 2-minute coordinator flag
+  setInterval(() => {
+    if (!S.stops) return;
+    const now = simNow();
+    let changed = false;
+    S.stops.forEach(st => {
+      if (st.arrivedAt !== null && st.pod.status !== "uploaded" && !st.flagged && now - st.arrivedAt > TWO_MIN) {
+        st.flagged = true; st.flagReason = "No POD after 2 min";
+        log(st, "Flagged for coordinator: no POD 2 min after arrival", "flag"); changed = true;
+      }
+    });
+    if (changed) { render(); return; }
+    document.querySelectorAll("[data-timer]").forEach(el => {
+      const st = S.stops[+el.dataset.timer - 1];
+      const ms = now - st.arrivedAt;
+      el.textContent = `Arrived ${fmt(ms)} ago`;
+      el.classList.toggle("late", ms > TWO_MIN && st.pod.status !== "uploaded");
+    });
+  }, 250);
+
+  reset();
+})();
+</script>
+</body>
+</html>
